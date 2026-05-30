@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>트랜스포터 압력 편차율 계산기</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d0f14;
+            --surface: #141720;
+            --card: #1a1e2a;
+            --border: #252b3b;
+            --accent: #00c8ff;
+            --accent2: #ffcc00;
+            --safe: #00e676;
+            --danger: #ff3d3d;
+            --text: #dde4f0;
+            --muted: #5a6480;
+            --mono: 'Share Tech Mono', monospace;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 0 0 48px;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent));
+            z-index: 100;
+        }
+        .wrap { max-width: 480px; margin: 0 auto; padding: 0 14px; }
+
+        .header { text-align: center; padding: 28px 0 20px; }
+        .tag {
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            color: var(--accent);
+            background: rgba(0,200,255,0.08);
+            border: 1px solid rgba(0,200,255,0.2);
+            padding: 4px 14px;
+            border-radius: 2px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .header h1 { font-size: 20px; font-weight: 900; color: #fff; }
+        .header h1 span { color: var(--accent); }
+
+        .section {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* 차량 선택 */
+        .vehicle-select {
+            width: 100%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 15px;
+            padding: 12px 14px;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a6480' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .vehicle-select:focus { border-color: var(--accent); }
+
+        .vehicle-info {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--accent2);
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .vehicle-info.show { display: flex; }
+        .vi-item { display: flex; flex-direction: column; gap: 2px; }
+        .vi-label { font-size: 9px; color: var(--muted); }
+
+        /* ── 실린더 입력: 2×2 그리드 + 가운데 트럭 ── */
+        .cyl-section-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dir-labels {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+            padding: 0 4px;
+        }
+
+        /* 앞줄: A | 트럭상단 | B */
+        /* 뒷줄: D | 트럭하단 | C */
+        .cyl-grid {
+            display: grid;
+            grid-template-columns: 1fr 60px 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .truck-center {
+            grid-column: 2;
+            grid-row: 1 / 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .truck-icon {
+            width: 52px;
+            height: 100%;
+            min-height: 120px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-around;
+            padding: 10px 0;
+            position: relative;
+        }
+        .truck-icon .t-label {
+            font-family: var(--mono);
+            font-size: 9px;
+            color: var(--muted);
+        }
+        .truck-row { display: flex; gap: 10px; }
+        .truck-dot {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            background: var(--border);
+            border: 1px solid var(--muted);
+        }
+
+        .cyl-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            transition: border-color 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        .cyl-card:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(0,200,255,0.1);
+        }
+        .cyl-name { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--accent2); line-height: 1; }
+        .cyl-pos  { font-size: 10px; color: var(--muted); margin-bottom: 8px; }
+        .cyl-card input {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: #fff;
+            font-family: var(--mono);
+            font-size: 20px;
+            padding: 8px 8px;
+            text-align: right;
+            outline: none;
+            transition: border-color 0.2s;
+            min-width: 0;
+        }
+        .cyl-card input:focus { border-color: var(--accent); }
+        .unit { font-size: 10px; color: var(--muted); text-align: right; margin-top: 3px; font-family: var(--mono); }
+
+        .criteria { display: flex; gap: 8px; margin-top: 10px; }
+        .criteria-item {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+        }
+        .criteria-item span { display: block; font-size: 14px; color: var(--accent2); margin-top: 2px; }
+
+        /* 버튼 */
+        .btn-calc {
+            width: 100%;
+            padding: 15px;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+        .btn-calc:hover { background: #33d4ff; }
+        .btn-calc:active { transform: scale(0.98); }
+
+        .error-msg {
+            background: rgba(255,61,61,0.08);
+            border: 1px solid rgba(255,61,61,0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--danger);
+            display: none;
+            margin-bottom: 10px;
+        }
+        .error-msg.show { display: block; }
+
+        /* 결과 */
+        .result-section { display: none; }
+        .result-section.show { display: block; }
+
+        /* 무게중심 도표 */
+        .cog-map {
+            position: relative;
+            width: 100%;
+            padding-bottom: 200%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .cog-inner { position: absolute; inset: 0; }
+        .cog-inner::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 8%; right: 8%;
+            height: 1px; background: var(--border);
+        }
+        .cog-inner::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 8%; bottom: 8%;
+            width: 1px; background: var(--border);
+        }
+        /* Truck silhouette inside COG map */
+        .cog-truck-svg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 68%;
+            height: 92%;
+            opacity: 0.13;
+            pointer-events: none;
+        }
+        .cog-axis {
+            position: absolute;
+            font-family: var(--mono);
+            font-size: 9px;
+            color: #3a4260;
+        }
+        .cog-axis.top    { top:4px;    left:50%; transform:translateX(-50%); }
+        .cog-axis.bottom { bottom:4px; left:50%; transform:translateX(-50%); }
+        .cog-axis.left   { left:4px;   top:50%;  transform:translateY(-50%); }
+        .cog-axis.right  { right:4px;  top:50%;  transform:translateY(-50%); }
+        .cog-corner {
+            position: absolute;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+            padding: 5px 8px;
+        }
+        .cog-corner.tl { top:0; left:0; }
+        .cog-corner.tr { top:0; right:0; }
+        .cog-corner.bl { bottom:0; left:0; }
+        .cog-corner.br { bottom:0; right:0; }
+        .cog-dot {
+            position: absolute;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--danger);
+            box-shadow: 0 0 12px var(--danger), 0 0 24px rgba(255,61,61,0.4);
+            transform: translate(-50%, -50%);
+            transition: left 0.5s cubic-bezier(.4,0,.2,1), top 0.5s cubic-bezier(.4,0,.2,1);
+            z-index: 2;
+        }
+        .cog-dot.safe {
+            background: var(--safe);
+            box-shadow: 0 0 12px var(--safe), 0 0 24px rgba(0,230,118,0.4);
+        }
+        .cog-desc {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--muted);
+            text-align: center;
+            margin-bottom: 14px;
+        }
+
+        /* 이동 안내 */
+        .move-guide {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+        }
+        .move-title {
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+        .move-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .move-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .move-arrow { font-size: 24px; width: 32px; text-align: center; flex-shrink: 0; }
+        .move-text { flex: 1; }
+        .move-dir { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+        .move-dist { font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--accent2); }
+        .move-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .move-ok { font-size: 13px; color: var(--safe); font-weight: 700; }
+
+        /* 편차율 카드 */
+        .deviation-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0; }
+        .dev-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+        .dev-dir { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 6px; }
+        .dev-value { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--accent2); line-height: 1; margin-bottom: 8px; }
+        .dev-status { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; display: inline-block; }
+        .dev-status.safe   { background: rgba(0,230,118,0.12); color: var(--safe);   border: 1px solid rgba(0,230,118,0.3); }
+        .dev-status.danger { background: rgba(255,61,61,0.12);  color: var(--danger); border: 1px solid rgba(255,61,61,0.3); }
+        .dev-detail { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 8px; line-height: 1.7; white-space: pre-line; }
+
+        /* 통계 */
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: var(--muted); }
+        .stat-value { font-family: var(--mono); }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="header">
+        <div class="tag">TRANSPORTER SYSTEM</div>
+        <h1>압력 <span>편차율</span> 계산기</h1>
+    </div>
+
+    <!-- 차량 선택 -->
+    <div class="section">
+        <div class="section-title">▸ 차량 선택</div>
+        <select class="vehicle-select" id="vehicleSelect" onchange="onVehicleChange()">
+            <option value="">-- 차량을 선택하세요 --</option>
+            <optgroup label="300톤">
+                <option value="300|15.0|6.0|303">303호 (300톤)</option>
+                <option value="300|15.0|6.0|308">308호 (300톤)</option>
+                <option value="300|15.5|6.0|312">312호 (300톤)</option>
+                <option value="300|20.2|4.0|316">316호 (300톤)</option>
+                <option value="300|20.2|4.0|317">317호 (300톤)</option>
+                <option value="300|17.0|6.0|318">318호 (300톤)</option>
+                <option value="300|17.0|6.0|319">319호 (300톤)</option>
+                <option value="300|16.0|6.0|320">320호 (300톤)</option>
+                <option value="300|17.0|6.0|321">321호 (300톤)</option>
+                <option value="300|17.0|6.0|322">322호 (300톤)</option>
+                <option value="300|20.5|4.0|323">323호 (300톤)</option>
+            </optgroup>
+            <optgroup label="500톤">
+                <option value="500|22.0|7.0|512">512호 (500톤)</option>
+                <option value="500|22.0|7.0|507">507호 (500톤)</option>
+                <option value="500|22.0|7.0|508">508호 (500톤)</option>
+                <option value="500|22.0|7.0|515">515호 (500톤)</option>
+                <option value="500|18.0|6.5|510">510호 (500톤)</option>
+                <option value="500|18.0|6.5|511">511호 (500톤)</option>
+                <option value="500|18.0|6.5|514">514호 (500톤)</option>
+            </optgroup>
+            <optgroup label="600톤">
+                <option value="600|22.0|7.0|601">601호 (600톤)</option>
+                <option value="600|22.0|7.0|602">602호 (600톤)</option>
+                <option value="600|22.0|7.0|603">603호 (600톤)</option>
+                <option value="600|22.0|7.0|604">604호 (600톤)</option>
+                <option value="600|22.0|7.0|605">605호 (600톤)</option>
+            </optgroup>
+            <optgroup label="800톤">
+                <option value="800|22.0|7.0|802">802호 (800톤)</option>
+                <option value="800|25.0|8.0|803">803호 (800톤)</option>
+                <option value="800|25.0|8.0|804">804호 (800톤)</option>
+                <option value="800|25.0|8.0|805">805호 (800톤)</option>
+                <option value="800|25.8|8.0|807">807호 (800톤)</option>
+                <option value="800|25.0|8.0|808">808호 (800톤)</option>
+                <option value="800|25.0|8.0|809">809호 (800톤)</option>
+                <option value="800|25.0|8.0|810">810호 (800톤)</option>
+                <option value="800|25.0|8.0|811">811호 (800톤)</option>
+            </optgroup>
+            <optgroup label="1200톤">
+                <option value="1200|26.5|10.0|1201">1201호 (1200톤)</option>
+                <option value="1200|28.0|10.0|1202">1202호 (1200톤)</option>
+            </optgroup>
+        </select>
+        <div class="vehicle-info" id="vehicleInfo">
+            <div class="vi-item"><span class="vi-label">차량번호</span><span id="viNum">—</span></div>
+            <div class="vi-item"><span class="vi-label">적재용량</span><span id="viTon">—</span></div>
+            <div class="vi-item"><span class="vi-label">전장</span><span id="viLen">—</span></div>
+            <div class="vi-item"><span class="vi-label">전폭</span><span id="viWid">—</span></div>
+        </div>
+    </div>
+
+    <!-- 실린더 입력 -->
+    <div class="section">
+        <div class="section-title">▸ 실린더 압력 입력 [bar]</div>
+        <div class="cyl-section-inner">
+            <div class="dir-labels">
+                <span>← 좌측</span>
+                <span>우측 →</span>
+            </div>
+            <div class="cyl-grid">
+                <!-- A: 왼앞 (row1, col1) -->
+                <div class="cyl-card">
+                    <div class="cyl-name">A</div>
+                    <div class="cyl-pos">왼쪽 앞</div>
+                    <input type="number" id="pA" placeholder="0" inputmode="decimal">
+                    <div class="unit">bar</div>
+                </div>
+
+                <!-- 트럭 (row1~2, col2) -->
+                <div class="truck-center">
+                    <div class="truck-icon">
+                        <span class="t-label">앞</span>
+                        <div class="truck-row">
+                            <div class="truck-dot"></div>
+                            <div class="truck-dot"></div>
+                        </div>
+                        <div style="width:26px;height:2px;background:var(--border);border-radius:1px;"></div>
+                        <div class="truck-row">
+                            <div class="truck-dot"></div>
+                            <div class="truck-dot"></div>
+                        </div>
+                        <span class="t-label">뒤</span>
+                    </div>
+                </div>
+
+                <!-- B: 오른앞 (row1, col3) -->
+                <div class="cyl-card">
+                    <div class="cyl-name">B</div>
+                    <div class="cyl-pos">오른쪽 앞</div>
+                    <input type="number" id="pB" placeholder="0" inputmode="decimal">
+                    <div class="unit">bar</div>
+                </div>
+
+                <!-- D: 왼뒤 (row2, col1) -->
+                <div class="cyl-card">
+                    <div class="cyl-name">D</div>
+                    <div class="cyl-pos">왼쪽 뒤</div>
+                    <input type="number" id="pD" placeholder="0" inputmode="decimal">
+                    <div class="unit">bar</div>
+                </div>
+
+                <!-- C: 오른뒤 (row2, col3) -->
+                <div class="cyl-card">
+                    <div class="cyl-name">C</div>
+                    <div class="cyl-pos">오른쪽 뒤</div>
+                    <input type="number" id="pC" placeholder="0" inputmode="decimal">
+                    <div class="unit">bar</div>
+                </div>
+            </div>
+
+            <div class="criteria">
+                <div class="criteria-item">좌/우 기준<span>≤ 10%</span></div>
+                <div class="criteria-item">앞/뒤 기준<span>≤ 20%</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <button class="btn-calc" onclick="runCalculate()">편차율 계산하기</button>
+
+    <!-- 결과 -->
+    <div class="result-section" id="resultSection">
+
+        <div class="section">
+            <div class="section-title">▸ 무게중심 위치</div>
+            <div class="cog-map">
+                <div class="cog-inner">
+                    <span class="cog-axis top">앞</span>
+                    <span class="cog-axis bottom">뒤</span>
+                    <span class="cog-axis left">좌</span>
+                    <span class="cog-axis right">우</span>
+                    <span class="cog-corner tl">A</span>
+                    <span class="cog-corner tr">B</span>
+                    <span class="cog-corner bl">D</span>
+                    <span class="cog-corner br">C</span>
+                    <!-- Truck silhouette -->
+                    <svg class="cog-truck-svg" viewBox="0 0 100 220" xmlns="http://www.w3.org/2000/svg" fill="none">
+                        <rect x="8" y="18" width="84" height="184" rx="10" fill="#00c8ff"/>
+                        <ellipse cx="50" cy="22" rx="36" ry="8" fill="#00c8ff"/>
+                        <rect x="14" y="10" width="72" height="14" rx="5" fill="#00c8ff"/>
+                        <rect x="22" y="14" width="56" height="18" rx="4" fill="#0d0f14" opacity="0.5"/>
+                        <rect x="0" y="52" width="14" height="22" rx="4" fill="#00c8ff"/>
+                        <rect x="86" y="52" width="14" height="22" rx="4" fill="#00c8ff"/>
+                        <rect x="0" y="136" width="14" height="22" rx="4" fill="#00c8ff"/>
+                        <rect x="86" y="136" width="14" height="22" rx="4" fill="#00c8ff"/>
+                        <rect x="0" y="161" width="14" height="22" rx="4" fill="#00c8ff"/>
+                        <rect x="86" y="161" width="14" height="22" rx="4" fill="#00c8ff"/>
+                        <rect x="14" y="196" width="72" height="10" rx="4" fill="#00c8ff"/>
+                        <line x1="50" y1="40" x2="50" y2="200" stroke="#0d0f14" stroke-width="1.5" opacity="0.4" stroke-dasharray="6,5"/>
+                    </svg>
+                    <div class="cog-dot" id="cogDot"></div>
+                </div>
+            </div>
+            <div class="cog-desc" id="cogDesc"></div>
+
+            <div class="move-guide">
+                <div class="move-title">▸ 차량 이동 방향 안내</div>
+                <div id="moveLR" class="move-row"></div>
+                <div id="moveFR" class="move-row"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">▸ 편차율 결과</div>
+            <div class="deviation-cards">
+                <div class="dev-card">
+                    <div class="dev-dir">좌 / 우</div>
+                    <div class="dev-value" id="lrVal">—</div>
+                    <div class="dev-status" id="lrStatus">—</div>
+                    <div class="dev-detail" id="lrDetail"></div>
+                </div>
+                <div class="dev-card">
+                    <div class="dev-dir">앞 / 뒤</div>
+                    <div class="dev-value" id="frVal">—</div>
+                    <div class="dev-status" id="frStatus">—</div>
+                    <div class="dev-detail" id="frDetail"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">▸ 압력 통계</div>
+            <div class="stat-row"><span class="stat-label">평균 압력</span><span class="stat-value" id="statAvg">—</span></div>
+            <div class="stat-row"><span class="stat-label">최대 압력</span><span class="stat-value" id="statMax">—</span></div>
+            <div class="stat-row"><span class="stat-label">최소 압력</span><span class="stat-value" id="statMin">—</span></div>
+            <div class="stat-row"><span class="stat-label">압력 차이</span><span class="stat-value" id="statDiff">—</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function onVehicleChange() {
+    const sel = document.getElementById('vehicleSelect');
+    const info = document.getElementById('vehicleInfo');
+    if (!sel.value) { info.classList.remove('show'); return; }
+    const [ton, len, wid, num] = sel.value.split('|');
+    document.getElementById('viNum').textContent = num + '호';
+    document.getElementById('viTon').textContent = ton + 'ton';
+    document.getElementById('viLen').textContent = len + 'm';
+    document.getElementById('viWid').textContent = wid + 'm';
+    info.classList.add('show');
+}
+
+function runCalculate() {
+    const errEl = document.getElementById('errorMsg');
+    const resultEl = document.getElementById('resultSection');
+
+    const sel = document.getElementById('vehicleSelect');
+    if (!sel.value) {
+        errEl.textContent = '⚠ 차량을 먼저 선택해주세요.';
+        errEl.classList.add('show');
+        resultEl.classList.remove('show');
+        return;
+    }
+    const [ton, lenStr, widStr] = sel.value.split('|');
+    const vehicleLen = parseFloat(lenStr);
+    const vehicleWid = parseFloat(widStr);
+
+    const vA = document.getElementById('pA').value.trim();
+    const vB = document.getElementById('pB').value.trim();
+    const vC = document.getElementById('pC').value.trim();
+    const vD = document.getElementById('pD').value.trim();
+
+    if ([vA,vB,vC,vD].some(v => v === '')) {
+        errEl.textContent = '⚠ 모든 실린더 압력을 입력해주세요.';
+        errEl.classList.add('show');
+        resultEl.classList.remove('show');
+        return;
+    }
+
+    const A = parseFloat(vA), B = parseFloat(vB), C = parseFloat(vC), D = parseFloat(vD);
+    if ([A,B,C,D].some(v => isNaN(v) || v < 0)) {
+        errEl.textContent = '⚠ 올바른 압력값을 입력해주세요.';
+        errEl.classList.add('show');
+        resultEl.classList.remove('show');
+        return;
+    }
+    errEl.classList.remove('show');
+
+    const leftAvg  = (A + D) / 2;
+    const rightAvg = (B + C) / 2;
+    const frontAvg = (A + B) / 2;
+    const rearAvg  = (D + C) / 2;
+    const total    = A + B + C + D;
+
+    const lrSum = leftAvg + rightAvg;
+    const frSum = frontAvg + rearAvg;
+    const lrDev = lrSum > 0 ? (Math.abs(leftAvg - rightAvg) / lrSum) * 100 : 0;
+    const frDev = frSum > 0 ? (Math.abs(frontAvg - rearAvg) / frSum) * 100 : 0;
+
+    const totalAvg = total / 4;
+    const maxP = Math.max(A,B,C,D);
+    const minP = Math.min(A,B,C,D);
+
+    // 무게중심 비율
+    const xRatio = total > 0 ? (B + C) / total : 0.5;
+    const yRatio = total > 0 ? (C + D) / total : 0.5;
+    const lrOffset = (xRatio - 0.5) * vehicleWid;
+    const frOffset = (yRatio - 0.5) * vehicleLen;
+
+    // 도표
+    const xPct = Math.min(90, Math.max(10, xRatio * 100));
+    const yPct = Math.min(90, Math.max(10, yRatio * 100));
+    const dot = document.getElementById('cogDot');
+    dot.style.left = xPct + '%';
+    dot.style.top  = yPct + '%';
+    const isSafe = lrDev <= 10 && frDev <= 20;
+    dot.className = 'cog-dot' + (isSafe ? ' safe' : '');
+
+    const xDir = xRatio > 0.52 ? '우측' : xRatio < 0.48 ? '좌측' : '중앙';
+    const yDir = yRatio > 0.52 ? '뒤쪽' : yRatio < 0.48 ? '앞쪽' : '중앙';
+    document.getElementById('cogDesc').textContent =
+        (xDir==='중앙' && yDir==='중앙')
+        ? '무게중심이 중앙에 위치합니다'
+        : `무게중심이 ${[yDir,xDir].filter(d=>d!=='중앙').join(' ')}으로 치우쳐 있습니다`;
+
+    // 이동 안내
+    const lrEl = document.getElementById('moveLR');
+    const frEl = document.getElementById('moveFR');
+
+    if (Math.abs(lrOffset) < 0.05) {
+        lrEl.innerHTML = `<span class="move-arrow">↔</span><div class="move-text"><div class="move-ok">✅ 좌/우 중심 양호</div></div>`;
+    } else {
+        const dir   = lrOffset > 0 ? '우측' : '좌측';
+        const arrow = lrOffset > 0 ? '→' : '←';
+        const dist  = Math.abs(lrOffset * 100).toFixed(0);
+        lrEl.innerHTML = `
+            <span class="move-arrow">${arrow}</span>
+            <div class="move-text">
+                <div class="move-dir">차량을 <strong>${dir}</strong>으로 이동</div>
+                <div class="move-dist">약 ${dist} cm</div>
+                <div class="move-sub">좌/우 편차 ${lrDev.toFixed(1)}% · 차폭 ${vehicleWid}m 기준</div>
+            </div>`;
+    }
+
+    if (Math.abs(frOffset) < 0.05) {
+        frEl.innerHTML = `<span class="move-arrow">↕</span><div class="move-text"><div class="move-ok">✅ 앞/뒤 중심 양호</div></div>`;
+    } else {
+        const dir   = frOffset > 0 ? '뒤쪽' : '앞쪽';
+        const arrow = frOffset > 0 ? '↓' : '↑';
+        const dist  = Math.abs(frOffset * 100).toFixed(0);
+        frEl.innerHTML = `
+            <span class="move-arrow">${arrow}</span>
+            <div class="move-text">
+                <div class="move-dir">차량을 <strong>${dir}</strong>으로 이동</div>
+                <div class="move-dist">약 ${dist} cm</div>
+                <div class="move-sub">앞/뒤 편차 ${frDev.toFixed(1)}% · 차장 ${vehicleLen}m 기준</div>
+            </div>`;
+    }
+
+    // 편차율
+    document.getElementById('lrVal').textContent = lrDev.toFixed(2) + '%';
+    const lrSafe = lrDev <= 10;
+    const lrSt = document.getElementById('lrStatus');
+    lrSt.textContent = lrSafe ? '안전 · 작업가능' : '위험 · 작업불가';
+    lrSt.className = 'dev-status ' + (lrSafe ? 'safe' : 'danger');
+    document.getElementById('lrDetail').textContent =
+        `좌측(A+D): ${leftAvg.toFixed(1)} bar\n우측(B+C): ${rightAvg.toFixed(1)} bar\n차이: ${Math.abs(leftAvg-rightAvg).toFixed(1)} bar`;
+
+    document.getElementById('frVal').textContent = frDev.toFixed(2) + '%';
+    const frSafe = frDev <= 20;
+    const frSt = document.getElementById('frStatus');
+    frSt.textContent = frSafe ? '안전 · 작업가능' : '위험 · 작업불가';
+    frSt.className = 'dev-status ' + (frSafe ? 'safe' : 'danger');
+    document.getElementById('frDetail').textContent =
+        `앞쪽(A+B): ${frontAvg.toFixed(1)} bar\n뒤쪽(D+C): ${rearAvg.toFixed(1)} bar\n차이: ${Math.abs(frontAvg-rearAvg).toFixed(1)} bar`;
+
+    // 통계
+    document.getElementById('statAvg').textContent  = totalAvg.toFixed(2) + ' bar';
+    document.getElementById('statMax').textContent  = maxP.toFixed(1) + ' bar';
+    document.getElementById('statMin').textContent  = minP.toFixed(1) + ' bar';
+    document.getElementById('statDiff').textContent = (maxP-minP).toFixed(1) + ' bar';
+
+    resultEl.classList.add('show');
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') runCalculate(); });
+</script>
+</body>
+</html>
